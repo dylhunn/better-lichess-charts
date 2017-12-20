@@ -1,0 +1,40 @@
+.App {
+  padding: 20px;
+}
+
+.flex-span {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  justify-content: center;
+}
+
+.uname-input {
+  margin: 5px;
+  margin-left: 0px;
+  flex: 3 0 0;
+}
+
+.gen-btn {
+  margin: 5px;
+  margin-right: 0px;
+  flex: 2 0 0;
+  
+}
+
+.non-ideal-pad {
+  display: block;
+  text-align: center;
+  margin: 50px;
+}
+
+.loading-spinner {
+  display: block;
+  text-align: center;
+  margin: 50px;
+}
+
+.center-text {
+  text-align: center;
+}
