@@ -102,14 +102,14 @@ class App extends React.Component {
     let classicalChartData = this.allGames.filter(game => game.speed === 'classical' && game.variant === 'standard');
 
     // Calculate data on openings    
-    let whiteGames = this.allGames.filter(game => game.variant === 'standard' && game.players.white.userId === this.previouslySelectedUname);
-    let blackGames = this.allGames.filter(game => game.variant === 'standard' && game.players.black.userId === this.previouslySelectedUname);
+    let whiteGames = this.allGames.filter(game => game.variant === 'standard' && game.players.white.userId.toUpperCase() === this.previouslySelectedUname.toUpperCase());
+    let blackGames = this.allGames.filter(game => game.variant === 'standard' && game.players.black.userId.toUpperCase() === this.previouslySelectedUname.toUpperCase());
 
     let openingNames = {};
 
-    let whiteOpeningData = {};
-    let blackOpeningData = {};
-    let allOpeningData = {};
+    let whiteOpeningCounts = {};
+    let blackOpeningCounts = {};
+    let allOpeningCounts = {};
 
     let whiteOpeningPie: any[] = [];
     let blackOpeningPie: any[] = [];
@@ -119,41 +119,41 @@ class App extends React.Component {
       if (!('opening' in game)) { // Aborted games might not have an opening field
         return;
       }
-      if (!(game.opening.eco in whiteOpeningData)) {
-        whiteOpeningData[game.opening.eco] = 0;
+      if (!(game.opening.eco in whiteOpeningCounts)) {
+        whiteOpeningCounts[game.opening.eco] = 0;
       }
       if (!(game.opening.eco in openingNames)) {
         openingNames[game.opening.eco] = game.opening.name;
       }
-      whiteOpeningData[game.opening.eco]++;
+      whiteOpeningCounts[game.opening.eco]++;
     });
 
     blackGames.forEach(game => {
       if (!('opening' in game)) { // Aborted games might not have an opening field
         return;
       }
-      if (!(game.opening.eco in blackOpeningData)) {
-        blackOpeningData[game.opening.eco] = 0;
+      if (!(game.opening.eco in blackOpeningCounts)) {
+        blackOpeningCounts[game.opening.eco] = 0;
       }
       if (!(game.opening.eco in openingNames)) {
         openingNames[game.opening.eco] = game.opening.name;
       }
-      blackOpeningData[game.opening.eco]++;
+      blackOpeningCounts[game.opening.eco]++;
     });
 
-    allOpeningData = JSON.parse(JSON.stringify(whiteOpeningData)); // deep copy the object
-    Object.keys(blackOpeningData).forEach(openingEco => {
-      if (openingEco in allOpeningData) {
-        allOpeningData[openingEco] += blackOpeningData[openingEco];
+    allOpeningCounts = JSON.parse(JSON.stringify(whiteOpeningCounts)); // deep copy the object
+    Object.keys(blackOpeningCounts).forEach(openingEco => {
+      if (openingEco in allOpeningCounts) {
+        allOpeningCounts[openingEco] += blackOpeningCounts[openingEco];
       } else {
-        allOpeningData[openingEco] = blackOpeningData[openingEco];
+        allOpeningCounts[openingEco] = blackOpeningCounts[openingEco];
       }
     });
 
     // Populate data structures for the pie charts
-    Object.keys(whiteOpeningData).forEach(eco => { whiteOpeningPie.push({ 'eco': eco, 'games': whiteOpeningData[eco], 'name': openingNames[eco], 'shortname': getEcoGenericName(eco) }); });
-    Object.keys(blackOpeningData).forEach(eco => { blackOpeningPie.push({ 'eco': eco, 'games': blackOpeningData[eco], 'name': openingNames[eco], 'shortname': getEcoGenericName(eco) }); });
-    Object.keys(allOpeningData).forEach(eco => { allOpeningPie.push({ 'eco': eco, 'games': allOpeningData[eco], 'name': openingNames[eco], 'shortname': getEcoGenericName(eco) }); });
+    Object.keys(whiteOpeningCounts).forEach(eco => { whiteOpeningPie.push({ 'eco': eco, 'games': whiteOpeningCounts[eco], 'name': openingNames[eco], 'shortname': getEcoGenericName(eco) }); });
+    Object.keys(blackOpeningCounts).forEach(eco => { blackOpeningPie.push({ 'eco': eco, 'games': blackOpeningCounts[eco], 'name': openingNames[eco], 'shortname': getEcoGenericName(eco) }); });
+    Object.keys(allOpeningCounts).forEach(eco => { allOpeningPie.push({ 'eco': eco, 'games': allOpeningCounts[eco], 'name': openingNames[eco], 'shortname': getEcoGenericName(eco) }); });
 
     // Sort the chart data lexically by Eco code
     whiteOpeningPie.sort((entry1, entry2) => entry1.eco.localeCompare(entry2.eco));
@@ -397,7 +397,7 @@ class App extends React.Component {
 
                   <div id="openings" />
                   <h3>Openings</h3>
-                  <h5>Openings in all game, by generic name and variation</h5>
+                  <h5>Openings in all games, by generic name and variation</h5>
 
                   <span className="flex-span">
                     <table className="pt-table pt-bordered pt-striped">
@@ -598,7 +598,7 @@ class App extends React.Component {
     });
 
     lichess.user.games(uname,
-      { with_analysis: 1, rated: 1, with_opening: 1, nb: 100, page: 1, with_movetimes: 1 },
+      { with_analysis: 1, rated: 1, with_opening: 1, nb: 100, page: 1, with_moves: 1, with_movetimes: 1 },
       (err: string, games: string) => {
         let pageData = JSON.parse(games);
         this.allGames = this.allGames.concat(pageData.currentPageResults);
@@ -616,7 +616,7 @@ class App extends React.Component {
     this.tempPageNo = currPage;
     this.forceUpdate();
     lichess.user.games(uname,
-      { with_analysis: 1, rated: 1, with_opening: 1, nb: 100, page: currPage, with_movetimes: 1 },
+      { with_analysis: 1, rated: 1, with_opening: 1, nb: 100, page: currPage, with_moves: 1, with_movetimes: 1 },
       (err: string, games: string) => {
         let pageData = JSON.parse(games);
         this.allGames = this.allGames.concat(pageData.currentPageResults);
@@ -630,7 +630,7 @@ class App extends React.Component {
     this.allGames.forEach(game => {
       // Calculate the ending rating
       let rating: number;
-      if (game.players.black.userId === this.previouslySelectedUname) {
+      if (game.players.black.userId.toUpperCase() === this.previouslySelectedUname.toUpperCase()) {
         rating = game.players.black.rating + game.players.black.ratingDiff;
       } else {
         rating = game.players.white.rating + game.players.white.ratingDiff;
