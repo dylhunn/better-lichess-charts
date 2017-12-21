@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as bp from '@blueprintjs/core';
-import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
+import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
 
 import './App.css';
 import '@blueprintjs/core/dist/blueprint.css';
@@ -10,6 +10,73 @@ bp.FocusStyleManager.onlyShowFocusOnTabs();
 const lichess = require('lichess-api');
 
 const chartHeights = 250;
+
+const ecoRangeNames = { // the Eco code is the starting code for each segment of openings
+  'A00': 'Irregular Openings',
+  'A01': 'Larsen\'s Opening',
+  'A02': 'Bird\'s Opening',
+  'A04': 'Reti Opening',
+  'A10': 'English Opening',
+  'A40': 'Atypical Replies to 1. d4',
+  'A45': 'Atypical Replies to 1. d4 Nf6',
+  'A50': 'Atypical Indian Systems',
+  'A56': 'Benoni Defense',
+  'A80': 'Dutch Defense',
+  'B00': 'King\'s Pawn Opening',
+  'B01': 'Scandinavian Defense',
+  'B02': 'Alekhine\'s Defense',
+  'B07': 'Pirc Defense',
+  'B10': 'Caro-Kann Defense',
+  'B20': 'Sicilian Defense',
+  'C00': 'French Defense',
+  'C20': 'Open Game',
+  'C60': 'Open Game: Ruy Lopez',
+  'D00': 'Closed Game',
+  'D06': 'Queen\'s Gambit',
+  'D70': 'Grünfeld Defence',
+  'E00': 'Other Indian Systems',
+  'E20': 'Nizmo-Indian Defense',
+  'E60': 'King\'s Indian Defense',
+}
+
+const ecoRangeColors = { // Colors for the pie chart
+  'Irregular Openings': '#EA3817',
+  'Larsen\'s Opening': '#EA3817',
+  'Bird\'s Opening': '#EA3817',
+  'Reti Opening': '#EA3817',
+  'English Opening': '#EA3817',
+  'Atypical Replies to 1. d4': '#EA3817',
+  'Atypical Replies to 1. d4 Nf6': '#EA3817',
+  'Atypical Indian Systems': '#EA3817',
+  'Benoni Defense': '#EA3817',
+  'Dutch Defense': '#EA3817',
+  'King\'s Pawn Opening': '#00C9C8',
+  'Scandinavian Defense': '#00C9C8',
+  'Alekhine\'s Defense': '#00C9C8',
+  'Pirc Defense': '#00C9C8',
+  'Caro-Kann Defense': '#00C9C8',
+  'Sicilian Defense': '#00C9C8',
+  'French Defense': '#FAC200',
+  'Open Game': '#FAC200',
+  'Open Game: Ruy Lopez': '#FAC200',
+  'Closed Game': '#5BB832',
+  'Queen\'s Gambit': '#5BB832',
+  'Grünfeld Defence': '#5BB832',
+  'Other Indian Systems': '#59344F',
+  'Nizmo-Indian Defense': '#59344F',
+  'King\'s Indian Defense': '#59344F',
+}
+
+// Returns the generic ("range") name for an eco code
+function getEcoGenericName(eco: string): string {
+  let openingGenericNameCodes = Object.keys(ecoRangeNames).sort((a, b) => a.localeCompare(b));
+  for (let i = openingGenericNameCodes.length - 1; i >= 0; i--) {
+    if (openingGenericNameCodes[i].localeCompare(eco) <= 0) {
+      return ecoRangeNames[openingGenericNameCodes[i]];
+    }
+  }
+  return "Unclassified Opening";
+}
 
 class App extends React.Component {
 
@@ -29,21 +96,108 @@ class App extends React.Component {
   tempTotalPages = 0;
 
   render() {
-
     let bulletChartData = this.allGames.filter(game => game.speed === 'bullet' && game.variant === 'standard');
     let blitzChartData = this.allGames.filter(game => game.speed === 'blitz' && game.variant === 'standard');
     let rapidChartData = this.allGames.filter(game => game.speed === 'rapid' && game.variant === 'standard');
     let classicalChartData = this.allGames.filter(game => game.speed === 'classical' && game.variant === 'standard');
 
+    // Calculate data on openings    
+    let whiteGames = this.allGames.filter(game => game.variant === 'standard' && game.players.white.userId === this.previouslySelectedUname);
+    let blackGames = this.allGames.filter(game => game.variant === 'standard' && game.players.black.userId === this.previouslySelectedUname);
+
+    let openingNames = {};
+
+    let whiteOpeningData = {};
+    let blackOpeningData = {};
+    let allOpeningData = {};
+
+    let whiteOpeningPie: any[] = [];
+    let blackOpeningPie: any[] = [];
+    let allOpeningPie: any[] = [];
+
+    whiteGames.forEach(game => {
+      if (!('opening' in game)) { // Aborted games might not have an opening field
+        return;
+      }
+      if (!(game.opening.eco in whiteOpeningData)) {
+        whiteOpeningData[game.opening.eco] = 0;
+      }
+      if (!(game.opening.eco in openingNames)) {
+        openingNames[game.opening.eco] = game.opening.name;
+      }
+      whiteOpeningData[game.opening.eco]++;
+    });
+
+    blackGames.forEach(game => {
+      if (!('opening' in game)) { // Aborted games might not have an opening field
+        return;
+      }
+      if (!(game.opening.eco in blackOpeningData)) {
+        blackOpeningData[game.opening.eco] = 0;
+      }
+      if (!(game.opening.eco in openingNames)) {
+        openingNames[game.opening.eco] = game.opening.name;
+      }
+      blackOpeningData[game.opening.eco]++;
+    });
+
+    allOpeningData = JSON.parse(JSON.stringify(whiteOpeningData)); // deep copy the object
+    Object.keys(blackOpeningData).forEach(openingEco => {
+      if (openingEco in allOpeningData) {
+        allOpeningData[openingEco] += blackOpeningData[openingEco];
+      } else {
+        allOpeningData[openingEco] = blackOpeningData[openingEco];
+      }
+    });
+
+    // Populate data structures for the pie charts
+    Object.keys(whiteOpeningData).forEach(eco => { whiteOpeningPie.push({ 'eco': eco, 'games': whiteOpeningData[eco], 'name': openingNames[eco], 'shortname': getEcoGenericName(eco) }); });
+    Object.keys(blackOpeningData).forEach(eco => { blackOpeningPie.push({ 'eco': eco, 'games': blackOpeningData[eco], 'name': openingNames[eco], 'shortname': getEcoGenericName(eco) }); });
+    Object.keys(allOpeningData).forEach(eco => { allOpeningPie.push({ 'eco': eco, 'games': allOpeningData[eco], 'name': openingNames[eco], 'shortname': getEcoGenericName(eco) }); });
+
+    // Sort the chart data lexically by Eco code
+    whiteOpeningPie.sort((entry1, entry2) => entry1.eco.localeCompare(entry2.eco));
+    blackOpeningPie.sort((entry1, entry2) => entry1.eco.localeCompare(entry2.eco));
+    allOpeningPie.sort((entry1, entry2) => entry1.eco.localeCompare(entry2.eco));
+
+    // Populate the short openings
+    let allShortOpeningsPie: any[] = [];
+    allOpeningPie.forEach(entry => {
+      if (allShortOpeningsPie.length == 0 || allShortOpeningsPie[allShortOpeningsPie.length - 1].shortname != entry.shortname) {
+        allShortOpeningsPie.push({ 'shortname': entry.shortname, 'games': entry.games });
+      } else {
+        allShortOpeningsPie[allShortOpeningsPie.length - 1].games += entry.games;
+      }
+    });
+
+    let whiteShortOpeningsPie: any[] = [];
+    whiteOpeningPie.forEach(entry => {
+      if (whiteShortOpeningsPie.length == 0 || whiteShortOpeningsPie[whiteShortOpeningsPie.length - 1].shortname != entry.shortname) {
+        whiteShortOpeningsPie.push({ 'shortname': entry.shortname, 'games': entry.games });
+      } else {
+        whiteShortOpeningsPie[whiteShortOpeningsPie.length - 1].games += entry.games;
+      }
+    });
+
+    let blackShortOpeningsPie: any[] = [];
+    blackOpeningPie.forEach(entry => {
+      if (blackShortOpeningsPie.length == 0 || blackShortOpeningsPie[blackShortOpeningsPie.length - 1].shortname != entry.shortname) {
+        blackShortOpeningsPie.push({ 'shortname': entry.shortname, 'games': entry.games });
+      } else {
+        blackShortOpeningsPie[blackShortOpeningsPie.length - 1].games += entry.games;
+      }
+    });
+
     return (
       <div className="App">
         <h1 className="center-text">Better Lichess Charts</h1>
         <bp.Callout>
-          The standard charts on Lichess aren't very rich, and the insights are challenging to use.
-          This tool attempts to supplement them by automatically generating a report on your playing progress, complete with charts and graphs, without any manual filtering required.
+          The standard charts on Lichess aren't very rich, and the insights are challenging to use.&nbsp;
+          This tool attempts to supplement them by automatically generating a report on your playing data, complete with charts and graphs, without any manual filtering required.&nbsp;
+          <i>This is an <a href="https://github.com/dylhunn/better-lichess-charts" target="_blank">open source project</a></i>.
         </bp.Callout>
         <span className="flex-span">
-          <input className="pt-input pt-large pt-intent-primary uname-input" type="text" placeholder="Enter lichess username..." dir="auto" onChange={(e) => { this.unameBoxText = e.target.value; }} />
+          <input className="pt-input pt-large pt-intent-primary uname-input" type="text" placeholder="Lichess username..." dir="auto" onChange={(e) => { this.unameBoxText = e.target.value; }} />
           <bp.Button className="pt-large pt-intent-success gen-btn" iconName="series-derived" onClick={() => this.startFetchingGames(this.unameBoxText)}>Generate</bp.Button>
         </span>
         <hr />
@@ -52,6 +206,9 @@ class App extends React.Component {
             <i>Retrieving your games from lichess...</i>
             <br /><br />
             <bp.Spinner className="pt-large" />
+
+            {this.tempTotalPages > 10 && (<span><br /><br /><i>You have a lot of games! Sit tight, analysis will take a moment...</i></span>)}
+
             <br /><br />
             <i>({this.tempPageNo} / {this.tempTotalPages})</i>
             <hr />
@@ -63,8 +220,10 @@ class App extends React.Component {
               (
                 <div>
                   <h3>Contents</h3>
-                  <a href="#player">Player</a> <br />
-                  <a href="#ratings">Ratings</a>
+                  <a href="#player">Player Info</a> <br />
+                  <a href="#rating-summary">Rating Summary</a> <br />
+                  <a href="#ratings">Rating Charts</a> <br />
+                  <a href="#openings">Openings</a> <br />
 
                   <hr />
 
@@ -121,6 +280,46 @@ class App extends React.Component {
                     </tbody>
                   </table>
 
+                  <hr />
+
+                  <div id="rating-summary" />
+                  <h3>Rating summary</h3>
+                  <table className="pt-table pt-striped pt-bordered">
+                    <thead>
+                      <tr>
+                        <th>Variant</th>
+                        <th>Games</th>
+                        <th>Rating</th>
+                        <th>Deviation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Bullet</td>
+                        <td>{this.userData.perfs.bullet.games} games</td>
+                        <td>{this.userData.perfs.bullet.rating}</td>
+                        <td>{this.userData.perfs.bullet.rd}</td>
+                      </tr>
+                      <tr>
+                        <td>Blitz</td>
+                        <td>{this.userData.perfs.blitz.games} games</td>
+                        <td>{this.userData.perfs.blitz.rating}</td>
+                        <td>{this.userData.perfs.blitz.rd}</td>
+                      </tr>
+                      <tr>
+                        <td>Rapid</td>
+                        <td>{this.userData.perfs.rapid.games} games</td>
+                        <td>{this.userData.perfs.rapid.rating}</td>
+                        <td>{this.userData.perfs.rapid.rd}</td>
+                      </tr>
+                      <tr>
+                        <td>Classical</td>
+                        <td>{this.userData.perfs.classical.games} games</td>
+                        <td>{this.userData.perfs.classical.rating}</td>
+                        <td>{this.userData.perfs.classical.rd}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                   <hr />
 
                   <div id="ratings" />
@@ -194,6 +393,170 @@ class App extends React.Component {
                       <Area type="monotone" dataKey="ratingAfter" stroke="#8884d8" fill="#8884d8" />
                     </AreaChart>
                   </ResponsiveContainer>
+                  <hr />
+
+                  <div id="openings" />
+                  <h3>Openings</h3>
+                  <h5>Openings in all game, by generic name and variation</h5>
+
+                  <span className="flex-span">
+                    <table className="pt-table pt-bordered pt-striped">
+                      <thead>
+                        <tr>
+                          <th>Games</th>
+                          <th>Opening <i>(generic name)</i></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {
+                          JSON.parse(JSON.stringify(allShortOpeningsPie)).sort((a, b) => b.games - a.games).map(e =>
+                            <tr><td>{e.games}</td><td>{e.shortname}</td></tr>
+                          )
+                        }
+                      </tbody>
+                    </table>
+                    <ResponsiveContainer width="100%" height={chartHeights * 1.5}>
+                      <PieChart>
+                        <Pie
+                          data={allShortOpeningsPie}
+                          nameKey="shortname"
+                          dataKey="games"
+                          outerRadius={chartHeights * .45}
+                          fill="#8884d8"
+                          paddingAngle={0}
+                        >
+                          {
+                            allShortOpeningsPie.map((entry, index) => <Cell fill={ecoRangeColors[entry.shortname]} />)
+                          }
+                        </Pie>
+                        <Pie
+                          data={allOpeningPie}
+                          nameKey="name"
+                          dataKey="games"
+                          innerRadius={chartHeights * .5}
+                          outerRadius={chartHeights * .75}
+                          fill="#82ca9d"
+                          paddingAngle={0}
+                        >
+                          {
+                            allOpeningPie.map((entry, index) => <Cell fill={ecoRangeColors[entry.shortname]} />)
+                          }
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </span>
+
+                  <hr />
+
+                  <h3>Openings as White</h3>
+                  <h5>Openings as white, by generic name and variation</h5>
+
+                  <span className="flex-span">
+                    <table className="pt-table pt-bordered pt-striped">
+                      <thead>
+                        <tr>
+                          <th>Games</th>
+                          <th>Opening <i>(generic name)</i></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {
+                          JSON.parse(JSON.stringify(whiteShortOpeningsPie)).sort((a, b) => b.games - a.games).map(e =>
+                            <tr><td>{e.games}</td><td>{e.shortname}</td></tr>
+                          )
+                        }
+                      </tbody>
+                    </table>
+                    <ResponsiveContainer width="100%" height={chartHeights * 1.5}>
+                      <PieChart>
+                        <Pie
+                          data={whiteShortOpeningsPie}
+                          nameKey="shortname"
+                          dataKey="games"
+                          outerRadius={chartHeights * .45}
+                          fill="#8884d8"
+                          paddingAngle={0}
+                        >
+                          {
+                            whiteShortOpeningsPie.map((entry, index) => <Cell fill={ecoRangeColors[entry.shortname]} />)
+                          }
+                        </Pie>
+                        <Pie
+                          data={whiteOpeningPie}
+                          nameKey="name"
+                          dataKey="games"
+                          innerRadius={chartHeights * .5}
+                          outerRadius={chartHeights * .75}
+                          fill="#82ca9d"
+                          paddingAngle={0}
+                        >
+                          {
+                            whiteOpeningPie.map((entry, index) => <Cell fill={ecoRangeColors[entry.shortname]} />)
+                          }
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </span>
+
+
+                  <hr />
+
+                  <h3>Openings as Black</h3>
+                  <h5>Openings as black, by generic name and variation</h5>
+
+                  <span className="flex-span">
+                    <table className="pt-table pt-bordered pt-striped">
+                      <thead>
+                        <tr>
+                          <th>Games</th>
+                          <th>Opening <i>(generic name)</i></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {
+                          JSON.parse(JSON.stringify(blackShortOpeningsPie)).sort((a, b) => b.games - a.games).map(e =>
+                            <tr><td>{e.games}</td><td>{e.shortname}</td></tr>
+                          )
+                        }
+                      </tbody>
+                    </table>
+                    <ResponsiveContainer width="100%" height={chartHeights * 1.5}>
+                      <PieChart>
+                        <Pie
+                          data={blackShortOpeningsPie}
+                          nameKey="shortname"
+                          dataKey="games"
+                          outerRadius={chartHeights * .45}
+                          fill="#8884d8"
+                          paddingAngle={0}
+                        >
+                          {
+                            blackShortOpeningsPie.map((entry, index) => <Cell fill={ecoRangeColors[entry.shortname]} />)
+                          }
+                        </Pie>
+                        <Pie
+                          data={blackOpeningPie}
+                          nameKey="name"
+                          dataKey="games"
+                          innerRadius={chartHeights * .5}
+                          outerRadius={chartHeights * .75}
+                          fill="#82ca9d"
+                          paddingAngle={0}
+                        >
+                          {
+                            blackOpeningPie.map((entry, index) => <Cell fill={ecoRangeColors[entry.shortname]} />)
+                          }
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </span>
+
+                  <hr />
+
+
                 </div>
 
               ) : (
