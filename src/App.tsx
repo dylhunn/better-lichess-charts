@@ -10,6 +10,8 @@ import './App.css';
 import '@blueprintjs/core/dist/blueprint.css';
 import '../node_modules/chessboardjs/www/releases/0.3.0/css/chessboard-0.3.0.css';
 
+import { FenTools } from './fentools';
+
 window['$'] = $;
 window['jQuery'] = $;
 
@@ -20,6 +22,8 @@ const lichess = require('lichess-api');
 const chartHeights = 250;
 
 const numGamesInTable = 25;
+
+let openingDb = new FenTools();
 
 const ecoRangeNames = { // the Eco code is the starting code for each segment of openings
   'A00': 'Irregular Openings',
@@ -38,7 +42,7 @@ const ecoRangeNames = { // the Eco code is the starting code for each segment of
   'B07': 'Pirc Defense',
   'B10': 'Caro-Kann Defense',
   'B20': 'Sicilian Defense',
-  'C00': 'French Defense', 
+  'C00': 'French Defense',
   'C20': 'Open Game',
   'C60': 'Open Game: Ruy Lopez',
   'D00': 'Closed Game',
@@ -85,25 +89,66 @@ function getEcoGenericName(eco: string): string {
       return ecoRangeNames[openingGenericNameCodes[i]];
     }
   }
-  return "Unclassified Opening";  
+  return "Unclassified Opening";
 }
 
-class ChessBoard extends React.Component {
+class OpeningExplorer extends React.Component {
+  nextMoves: any[] = [];
+  board: any;
+
   render() {
     return (
-      <div>
-        <div id="board1" style={{ 'width': '400px' }} />
+      <div style={{ margin: 'auto', textAlign: 'center' }}>
+        <div id="board1" className="board-width" style={{ margin: 'auto', textAlign: 'center' }} />
+        <bp.Button className="board-width pt-intent-primary pt-large pt-icon-search" onClick={e => this.search()}>
+          Search for Continuations
+        </bp.Button>
+        <br /><br />
+        {
+          this.nextMoves.length === 0 ? (
+            <bp.Tag className="pt-intent-danger pt-large board-width center-text">
+              <i>No results; click the search button, or change the position.</i>
+            </bp.Tag>
+          ) : (
+              <table className="pt-table pt-bordered pt-striped pt-condensed board-width" style={{ margin: 'auto', textAlign: 'center' }}>
+                <thead>
+                  <tr>
+                    <th>Move</th>
+                    <th>Games</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {
+                    JSON.parse(JSON.stringify(this.nextMoves))
+                      .sort((a, b) => b.count - a.count)
+                      .map((e) =>
+                        <tr>
+                          <td>{e.move}</td>
+                          <td>{e.count}</td>
+                        </tr>
+                      )
+                  }
+                </tbody>
+              </table>
+            )
+        }
       </div>
     );
   }
 
+  search() {
+    this.nextMoves = openingDb.getMoves(this.board.fen());
+    this.forceUpdate();
+  }
+
   componentDidMount() {
-    var cfg = {
+    let cfg = {
       draggable: true,
-      dropOffBoard: 'snapback', // this is the default
-      position: 'start'
+      dropOffBoard: 'trash',
+      position: 'start',
+      sparePieces: true
     };
-    var board = Chess('board1', cfg);
+    this.board = Chess('board1', cfg);
   }
 }
 
@@ -119,6 +164,7 @@ class App extends React.Component {
   unameBoxText = 'dylhunn';
   previouslySelectedUname = '';
   loading = false;
+  computingdb = false;
 
   // Temporary progress bar indicator variables
   tempPageNo = 0;
@@ -225,7 +271,7 @@ class App extends React.Component {
         <bp.Callout>
           The standard charts on Lichess aren't very rich, and the insights are challenging to use.&nbsp;
           Additionally, Lichess makes it impossible to view insights on other players!&nbsp;
-          This tool attempts to automatically generate a report on your (or an opponent's) playing data, complete with charts and graphs, without any manual filtering required.&nbsp;
+          This tool attempts to automatically generate a report on your (or an opponent's) playing data, complete with rating analysis, opening exploration, and more, without any manual filtering required.&nbsp;
           <i>This is an <a href="https://github.com/dylhunn/better-lichess-charts" target="_blank">open source project</a></i>.
         </bp.Callout>
         <span className="flex-span">
@@ -235,14 +281,22 @@ class App extends React.Component {
         <hr />
         {this.loading ? (
           <div className="loading-spinner">
-            <i>Retrieving games and analysis from lichess...</i>
+            {
+              this.computingdb ? (
+                <i>Computing this player's opening statistics; this will take a few moments...</i>
+              ) : (
+                  <i>Retrieving games and analysis from lichess...</i>
+                )
+            }
             <br /><br />
             <bp.Spinner className="pt-large" />
 
             {this.tempTotalPages > 10 && (<span><br /><br /><i>This player has a lot of games! Sit tight, analysis will take a moment...</i></span>)}
 
             <br /><br />
-            <i>({this.tempPageNo} / {this.tempTotalPages})</i>
+            {
+              this.computingdb || <i>({this.tempPageNo} / {this.tempTotalPages})</i>
+            }
             <hr />
             <h6>Lichess TV while you wait</h6>
             <iframe src="https://lichess.org/tv/frame?bg=light&theme=canvas" style={{ width: '224px', height: '264px' }} />
@@ -827,8 +881,11 @@ class App extends React.Component {
 
                   <div id="explore-openings" />
                   <h3>Personal Opening Explorer</h3>
-                  <h5>An opening explorer, generated with statistics for just this player</h5>
-                  <ChessBoard />
+                  <p>
+                    An opening explorer, generated with statistics for just this player.
+                    The statistics are generated 10 moves deep (20 ply).
+                  </p>
+                  <OpeningExplorer />
 
                   <hr />
 
@@ -913,7 +970,7 @@ class App extends React.Component {
     this.tempPageNo = currPage;
     this.forceUpdate();
     lichess.user.games(uname,
-      { with_analysis: 1, rated: 1, with_opening: 1, nb: 100, page: currPage, with_moves: 1, with_movetimes: 1 },
+      { with_analysis: 0, rated: 1, with_opening: 1, nb: 100, page: currPage, with_moves: 1, with_movetimes: 1 },
       (err: string, games: string) => {
         let pageData = JSON.parse(games);
         this.allGames = this.allGames.concat(pageData.currentPageResults);
@@ -924,8 +981,8 @@ class App extends React.Component {
 
   fetchGamesComplete() {
     this.allGames.reverse(); // Reverse the array, since recent games are first
-    this.allGames.filter(g => g.status != "NoStart" || g.status != "Aborted" || g.status != "nostart" || g.status != "aborted"); // Remove games that didn't even start
-    this.allGames.filter(g => g.status != "Created" || g.status != "Started" || g.status != "created" || g.status != "started"); // Remove games that haven't finished yet
+    this.allGames.filter(g => g.status !== 'NoStart' || g.status !== 'Aborted' || g.status !== 'nostart' || g.status !== 'aborted'); // Remove games that didn't even start
+    this.allGames.filter(g => g.status !== 'Created' || g.status !== 'Started' || g.status !== 'created' || g.status !== 'started'); // Remove games that haven't finished yet
     this.allGames.forEach(game => {
       // Calculate the ending rating
       let rating: number;
@@ -952,9 +1009,18 @@ class App extends React.Component {
       let startDate = new Date(game.createdAt);
       game['simpleStartDate'] = '' + startDate.getMonth() + '/' + startDate.getDate() + '/' + startDate.getFullYear();
     });
-    console.log(this.allGames);
-    this.loading = false;
+    this.computingdb = true;
     this.forceUpdate();
+    console.log(this.allGames);
+
+    // Now, fill the opening database for this player
+    // Do this after a short timeout, so the app text has a chance to update
+    setTimeout(() => {
+      openingDb.computeOpeningDb(this.allGames);
+      this.computingdb = false;
+      this.loading = false;
+      this.forceUpdate();
+    }, 100);
   }
 
 }
