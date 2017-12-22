@@ -4,7 +4,10 @@
   "private": true,
   "dependencies": {
     "@blueprintjs/core": "^1.35.0",
+    "chessboardjs": "0.0.1",
+    "jquery": "^3.2.1",
     "lichess-api": "^1.0.2",
+    "oakmac-chessboard": "^1.0.0",
     "react": "^16.2.0",
     "react-addons-css-transition-group": "^15.6.2",
     "react-dom": "^16.2.0",

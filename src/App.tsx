@@ -1,15 +1,25 @@
 import * as React from 'react';
 import * as bp from '@blueprintjs/core';
-import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
+
+import $ from 'jquery';
+import Chess from 'chessboardjs';
+
+import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, PieChart, ScatterChart, Scatter, Pie, Cell, Label, Legend } from 'recharts';
 
 import './App.css';
 import '@blueprintjs/core/dist/blueprint.css';
+import '../node_modules/chessboardjs/www/releases/0.3.0/css/chessboard-0.3.0.css';
+
+window['$'] = $;
+window['jQuery'] = $;
 
 bp.FocusStyleManager.onlyShowFocusOnTabs();
 
 const lichess = require('lichess-api');
 
 const chartHeights = 250;
+
+const numGamesInTable = 25;
 
 const ecoRangeNames = { // the Eco code is the starting code for each segment of openings
   'A00': 'Irregular Openings',
@@ -28,7 +38,7 @@ const ecoRangeNames = { // the Eco code is the starting code for each segment of
   'B07': 'Pirc Defense',
   'B10': 'Caro-Kann Defense',
   'B20': 'Sicilian Defense',
-  'C00': 'French Defense',
+  'C00': 'French Defense', 
   'C20': 'Open Game',
   'C60': 'Open Game: Ruy Lopez',
   'D00': 'Closed Game',
@@ -75,7 +85,26 @@ function getEcoGenericName(eco: string): string {
       return ecoRangeNames[openingGenericNameCodes[i]];
     }
   }
-  return "Unclassified Opening";
+  return "Unclassified Opening";  
+}
+
+class ChessBoard extends React.Component {
+  render() {
+    return (
+      <div>
+        <div id="board1" style={{ 'width': '400px' }} />
+      </div>
+    );
+  }
+
+  componentDidMount() {
+    var cfg = {
+      draggable: true,
+      dropOffBoard: 'snapback', // this is the default
+      position: 'start'
+    };
+    var board = Chess('board1', cfg);
+  }
 }
 
 class App extends React.Component {
@@ -96,6 +125,7 @@ class App extends React.Component {
   tempTotalPages = 0;
 
   render() {
+    let standardGames = this.allGames.filter(game => game.variant === 'standard');
     let bulletChartData = this.allGames.filter(game => game.speed === 'bullet' && game.variant === 'standard');
     let blitzChartData = this.allGames.filter(game => game.speed === 'blitz' && game.variant === 'standard');
     let rapidChartData = this.allGames.filter(game => game.speed === 'rapid' && game.variant === 'standard');
@@ -190,10 +220,12 @@ class App extends React.Component {
 
     return (
       <div className="App">
-        <h1 className="center-text">Better Lichess Charts</h1>
+        <h1 className="center-text">Better Lichess Analytics</h1>
+        <h5 className="center-text">Instant analytics on any player</h5>
         <bp.Callout>
           The standard charts on Lichess aren't very rich, and the insights are challenging to use.&nbsp;
-          This tool attempts to supplement them by automatically generating a report on your playing data, complete with charts and graphs, without any manual filtering required.&nbsp;
+          Additionally, Lichess makes it impossible to view insights on other players!&nbsp;
+          This tool attempts to automatically generate a report on your (or an opponent's) playing data, complete with charts and graphs, without any manual filtering required.&nbsp;
           <i>This is an <a href="https://github.com/dylhunn/better-lichess-charts" target="_blank">open source project</a></i>.
         </bp.Callout>
         <span className="flex-span">
@@ -203,11 +235,11 @@ class App extends React.Component {
         <hr />
         {this.loading ? (
           <div className="loading-spinner">
-            <i>Retrieving your games from lichess...</i>
+            <i>Retrieving games and analysis from lichess...</i>
             <br /><br />
             <bp.Spinner className="pt-large" />
 
-            {this.tempTotalPages > 10 && (<span><br /><br /><i>You have a lot of games! Sit tight, analysis will take a moment...</i></span>)}
+            {this.tempTotalPages > 10 && (<span><br /><br /><i>This player has a lot of games! Sit tight, analysis will take a moment...</i></span>)}
 
             <br /><br />
             <i>({this.tempPageNo} / {this.tempTotalPages})</i>
@@ -221,9 +253,26 @@ class App extends React.Component {
                 <div>
                   <h3>Contents</h3>
                   <a href="#player">Player Info</a> <br />
+                  <br />
                   <a href="#rating-summary">Rating Summary</a> <br />
-                  <a href="#ratings">Rating Charts</a> <br />
-                  <a href="#openings">Openings</a> <br />
+                  <a href="#bullet-ratings">Bullet Rating Chart</a> <br />
+                  <a href="#blitz-ratings">Blitz Rating Chart</a> <br />
+                  <a href="#rapid-ratings">Rapid Rating Chart</a> <br />
+                  <a href="#classical-ratings">Classical Rating Chart</a> <br />
+                  <br />
+                  <a href="#best-wins">Best Wins</a> <br />
+                  <a href="#worst-losses">Worst Losses</a> <br />
+                  <a href="#worst-wins">Worst Wins</a> <br />
+                  <a href="#best-losses">Best Losses</a> <br />
+                  <a href="#most-unexpected-wins">Most Unexpected Wins</a> <br />
+                  <a href="#best-draws">Best Draws</a> <br />
+                  <br />
+                  <a href="#openings">Opening Frequency</a> <br />
+                  <a href="#openings-as-white">Opening Frequency as White</a> <br />
+                  <a href="#openings-as-black">Opening Frequency as Black</a> <br />
+                  <a href="#explore-openings">Personal Opening Explorer</a> <bp.Tag className="pt-intent-warning">Featured!</bp.Tag><br />
+                  <br />
+                  <a href="#game-length-by-rating-diff">Game Length by Rating Difference</a> <br />
 
                   <hr />
 
@@ -322,77 +371,295 @@ class App extends React.Component {
                   </table>
                   <hr />
 
-                  <div id="ratings" />
+                  <div id="bullet-ratings" />
                   <h3>Standard Chess: Bullet</h3>
                   <h5>Rating progression over time</h5>
                   <ResponsiveContainer width="100%" height={chartHeights}>
                     <AreaChart
                       data={bulletChartData}
                       margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                      <XAxis dataKey="lastMoveAt" scale="time" tickFormatter={(timestamp) => {
+                      <XAxis dataKey="lastMoveAt" scale="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(timestamp) => {
                         let date = new Date(timestamp);
-                        return date.getMonth() + '/' + date.getDay() + '/' + date.getFullYear();
+                        //return date.getMonth() + '/' + date.getDay() + '/' + date.getFullYear();
+                        return '' + date;
                       }} />
-                      <YAxis domain={['dataMin', 'dataMax']} />
+                      <YAxis domain={['dataMin', 'dataMax']} type="number" scale="linear" />
                       <CartesianGrid strokeDasharray="3 3" />
                       <Tooltip label="Rating" labelFormatter={(timestamp) => { return (new Date(timestamp)) + ''; }} />
-                      <Area type="monotone" dataKey="ratingAfter" stroke="#8884d8" fill="#8884d8" />
+                      <Area type="monotone" dataKey="ratingAfter" name="Rating" stroke="#8884d8" fill="#8884d8" />
                     </AreaChart>
                   </ResponsiveContainer>
                   <hr />
 
+                  <div id="blitz-ratings" />
                   <h3>Standard Chess: Blitz</h3>
                   <h5>Rating progression over time</h5>
                   <ResponsiveContainer width="100%" height={chartHeights}>
                     <AreaChart
                       data={blitzChartData}
                       margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                      <XAxis dataKey="lastMoveAt" scale="time" tickFormatter={(timestamp) => {
+                      <XAxis dataKey="lastMoveAt" scale="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(timestamp) => {
                         let date = new Date(timestamp);
-                        return date.getMonth() + '/' + date.getDay() + '/' + date.getFullYear();
+                        //return date.getMonth() + '/' + date.getDay() + '/' + date.getFullYear();
+                        return '' + date;
                       }} />
-                      <YAxis domain={['dataMin', 'dataMax']} />
+                      <YAxis domain={['dataMin', 'dataMax']} type="number" scale="linear" />
                       <CartesianGrid strokeDasharray="3 3" />
                       <Tooltip label="Rating" labelFormatter={(timestamp) => { return (new Date(timestamp)) + ''; }} />
-                      <Area type="monotone" dataKey="ratingAfter" stroke="#8884d8" fill="#8884d8" />
+                      <Area type="monotone" dataKey="ratingAfter" name="Rating" stroke="#8884d8" fill="#8884d8" />
                     </AreaChart>
                   </ResponsiveContainer>
                   <hr />
 
+                  <div id="rapid-ratings" />
                   <h3>Standard Chess: Rapid</h3>
                   <h5>Rating progression over time</h5>
                   <ResponsiveContainer width="100%" height={chartHeights}>
                     <AreaChart
                       data={rapidChartData}
                       margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                      <XAxis dataKey="lastMoveAt" scale="time" tickFormatter={(timestamp) => {
+                      <XAxis dataKey="lastMoveAt" scale="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(timestamp) => {
                         let date = new Date(timestamp);
-                        return date.getMonth() + '/' + date.getDay() + '/' + date.getFullYear();
+                        //return date.getMonth() + '/' + date.getDay() + '/' + date.getFullYear();
+                        return '' + date;
                       }} />
-                      <YAxis domain={['dataMin', 'dataMax']} />
+                      <YAxis domain={['dataMin', 'dataMax']} type="number" scale="linear" />
                       <CartesianGrid strokeDasharray="3 3" />
                       <Tooltip label="Rating" labelFormatter={(timestamp) => { return (new Date(timestamp)) + ''; }} />
-                      <Area type="monotone" dataKey="ratingAfter" stroke="#8884d8" fill="#8884d8" />
+                      <Area type="monotone" dataKey="ratingAfter" name="Rating" stroke="#8884d8" fill="#8884d8" />
                     </AreaChart>
                   </ResponsiveContainer>
                   <hr />
 
+                  <div id="classical-ratings" />
                   <h3>Standard Chess: Classical</h3>
                   <h5>Rating progression over time</h5>
                   <ResponsiveContainer width="100%" height={chartHeights}>
                     <AreaChart
                       data={classicalChartData}
                       margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                      <XAxis dataKey="lastMoveAt" scale="time" tickFormatter={(timestamp) => {
+                      <XAxis dataKey="lastMoveAt" scale="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(timestamp) => {
                         let date = new Date(timestamp);
-                        return date.getMonth() + '/' + date.getDay() + '/' + date.getFullYear();
+                        //return date.getMonth() + '/' + date.getDay() + '/' + date.getFullYear();
+                        return '' + date;
                       }} />
-                      <YAxis domain={['dataMin', 'dataMax']} />
+                      <YAxis domain={['dataMin', 'dataMax']} type="number" scale="linear" />
                       <CartesianGrid strokeDasharray="3 3" />
                       <Tooltip label="Rating" labelFormatter={(timestamp) => { return (new Date(timestamp)) + ''; }} />
-                      <Area type="monotone" dataKey="ratingAfter" stroke="#8884d8" fill="#8884d8" />
+                      <Area type="monotone" dataKey="ratingAfter" name="Rating" stroke="#8884d8" fill="#8884d8" />
                     </AreaChart>
                   </ResponsiveContainer>
+                  <hr />
+
+                  <div id="best-wins" />
+                  <h3>Best Wins</h3>
+                  <table className="pt-table pt-bordered pt-striped pt-condensed">
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>Opponent</th>
+                        <th>(opponent)</th>
+                        <th>{this.previouslySelectedUname}</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Opening</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {
+                        JSON.parse(JSON.stringify(standardGames))
+                          .sort((a, b) => b.oppRatingBefore - a.oppRatingBefore)
+                          .filter(g => g.weWon && !g.wasDrawn)
+                          .slice(0, numGamesInTable)
+                          .map((e, i) =>
+                            <tr><td>{i + 1}</td>
+                              <td>{e.oppName}</td>
+                              <td>{e.oppRatingBefore}</td>
+                              <td>{e.ourRatingBefore}</td>
+                              <td><a href={e.url} target="_blank">{e.simpleStartDate}</a></td>
+                              <td>{e.speed}</td>
+                              <td>{e.opening.name}</td>
+                            </tr>
+                          )
+                      }
+                    </tbody>
+                  </table>
+                  <hr />
+
+                  <div id="worst-losses" />
+                  <h3>Worst Losses</h3>
+                  <table className="pt-table pt-bordered pt-striped pt-condensed">
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>Opponent</th>
+                        <th>(opponent)</th>
+                        <th>{this.previouslySelectedUname}</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Opening</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {
+                        JSON.parse(JSON.stringify(standardGames))
+                          .sort((a, b) => a.oppRatingBefore - b.oppRatingBefore)
+                          .filter(g => !g.weWon && !g.wasDrawn)
+                          .slice(0, numGamesInTable)
+                          .map((e, i) =>
+                            <tr><td>{i + 1}</td>
+                              <td>{e.oppName}</td>
+                              <td>{e.oppRatingBefore}</td>
+                              <td>{e.ourRatingBefore}</td>
+                              <td><a href={e.url} target="_blank">{e.simpleStartDate}</a></td>
+                              <td>{e.speed}</td>
+                              <td>{e.opening.name}</td>
+                            </tr>
+                          )
+                      }
+                    </tbody>
+                  </table>
+                  <hr />
+
+                  <div id="worst-wins" />
+                  <h3>Worst Wins</h3>
+                  <table className="pt-table pt-bordered pt-striped pt-condensed">
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>Opponent</th>
+                        <th>(opponent)</th>
+                        <th>{this.previouslySelectedUname}</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Opening</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {
+                        JSON.parse(JSON.stringify(standardGames))
+                          .sort((a, b) => a.oppRatingBefore - b.oppRatingBefore)
+                          .filter(g => g.weWon && !g.wasDrawn)
+                          .slice(0, numGamesInTable)
+                          .map((e, i) =>
+                            <tr><td>{i + 1}</td>
+                              <td>{e.oppName}</td>
+                              <td>{e.oppRatingBefore}</td>
+                              <td>{e.ourRatingBefore}</td>
+                              <td><a href={e.url} target="_blank">{e.simpleStartDate}</a></td>
+                              <td>{e.speed}</td>
+                              <td>{e.opening.name}</td></tr>
+
+                          )
+                      }
+                    </tbody>
+                  </table>
+                  <hr />
+
+                  <div id="best-losses" />
+                  <h3>Best Losses</h3>
+                  <table className="pt-table pt-bordered pt-striped pt-condensed">
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>Opponent</th>
+                        <th>(opponent)</th>
+                        <th>{this.previouslySelectedUname}</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Opening</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {
+                        JSON.parse(JSON.stringify(standardGames))
+                          .sort((a, b) => b.oppRatingBefore - a.oppRatingBefore)
+                          .filter(g => !g.weWon && !g.wasDrawn)
+                          .slice(0, numGamesInTable)
+                          .map((e, i) =>
+                            <tr><td>{i + 1}</td>
+                              <td>{e.oppName}</td>
+                              <td>{e.oppRatingBefore}</td>
+                              <td>{e.ourRatingBefore}</td>
+                              <td><a href={e.url} target="_blank">{e.simpleStartDate}</a></td>
+                              <td>{e.speed}</td>
+                              <td>{e.opening.name}</td>
+                            </tr>
+                          )
+                      }
+                    </tbody>
+                  </table>
+                  <hr />
+
+                  <div id="most-unexpected-wins" />
+                  <h3>Most Unexpected Wins</h3>
+                  <h5>Wins with the largest difference in rating</h5>
+                  <table className="pt-table pt-bordered pt-striped pt-condensed">
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>Opponent</th>
+                        <th>(opponent)</th>
+                        <th>{this.previouslySelectedUname}</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Opening</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {
+                        JSON.parse(JSON.stringify(standardGames))
+                          .sort((a, b) => a.ratingdiff - b.ratingdiff)
+                          .filter(g => g.weWon && !g.wasDrawn)
+                          .slice(0, numGamesInTable)
+                          .map((e, i) =>
+                            <tr><td>{i + 1}</td>
+                              <td>{e.oppName}</td>
+                              <td>{e.oppRatingBefore}</td>
+                              <td>{e.ourRatingBefore}</td>
+                              <td><a href={e.url} target="_blank">{e.simpleStartDate}</a></td>
+                              <td>{e.speed}</td>
+                              <td>{e.opening.name}</td></tr>
+
+                          )
+                      }
+                    </tbody>
+                  </table>
+                  <hr />
+
+                  <div id="best-draws" />
+                  <h3>Best Draws</h3>
+                  <table className="pt-table pt-bordered pt-striped pt-condensed">
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>Opponent</th>
+                        <th>(opponent)</th>
+                        <th>{this.previouslySelectedUname}</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Opening</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {
+                        JSON.parse(JSON.stringify(standardGames))
+                          .sort((a, b) => b.oppRatingBefore - a.oppRatingBefore)
+                          .filter(g => g.wasDrawn)
+                          .slice(0, numGamesInTable)
+                          .map((e, i) =>
+                            <tr><td>{i + 1}</td>
+                              <td>{e.oppName}</td>
+                              <td>{e.oppRatingBefore}</td>
+                              <td>{e.ourRatingBefore}</td>
+                              <td><a href={e.url} target="_blank">{e.simpleStartDate}</a></td>
+                              <td>{e.speed}</td>
+                              <td>{e.opening.name}</td></tr>
+
+                          )
+                      }
+                    </tbody>
+                  </table>
                   <hr />
 
                   <div id="openings" />
@@ -400,7 +667,7 @@ class App extends React.Component {
                   <h5>Openings in all games, by generic name and variation</h5>
 
                   <span className="flex-span">
-                    <table className="pt-table pt-bordered pt-striped">
+                    <table className="pt-table pt-bordered pt-striped pt-condensed">
                       <thead>
                         <tr>
                           <th>Games</th>
@@ -449,11 +716,12 @@ class App extends React.Component {
 
                   <hr />
 
+                  <div id="openings-as-white" />
                   <h3>Openings as White</h3>
                   <h5>Openings as white, by generic name and variation</h5>
 
                   <span className="flex-span">
-                    <table className="pt-table pt-bordered pt-striped">
+                    <table className="pt-table pt-bordered pt-striped pt-condensed">
                       <thead>
                         <tr>
                           <th>Games</th>
@@ -503,11 +771,12 @@ class App extends React.Component {
 
                   <hr />
 
+                  <div id="openings-as-black" />
                   <h3>Openings as Black</h3>
                   <h5>Openings as black, by generic name and variation</h5>
 
                   <span className="flex-span">
-                    <table className="pt-table pt-bordered pt-striped">
+                    <table className="pt-table pt-bordered pt-striped pt-condensed">
                       <thead>
                         <tr>
                           <th>Games</th>
@@ -556,6 +825,34 @@ class App extends React.Component {
 
                   <hr />
 
+                  <div id="explore-openings" />
+                  <h3>Personal Opening Explorer</h3>
+                  <h5>An opening explorer, generated with statistics for just this player</h5>
+                  <ChessBoard />
+
+                  <hr />
+
+                  <div id="game-length-by-rating-diff" />
+                  <h3>Game Length by Rating Difference</h3>
+                  <h5>Positive rating differences mean you outrated your opponent</h5>
+                  <ResponsiveContainer width="100%" height={chartHeights}>
+                    <ScatterChart height={chartHeights} margin={{ top: 20, right: 0, left: 20, bottom: 20 }}>
+                      <XAxis dataKey="ratingdiff" unit="" name="Rating Difference" scale="linear" type="number" >
+                        <Label value="Rating Difference" position="bottom" offset={0} />
+                      </XAxis>
+                      <YAxis dataKey="turns" unit="" name="Ply" scale="linear" type="number"  >
+                        <Label value="Ply" position="left" offset={0} />
+                      </YAxis>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <Scatter name="Win" data={standardGames.filter(g => g.weWon && !g.wasDrawn).sort((a, b) => a.ratingdiff - b.ratingdiff)} fill="#5BB832" />
+                      <Scatter name="Draw" data={standardGames.filter(g => g.wasDrawn).sort((a, b) => a.ratingdiff - b.ratingdiff)} fill="#FAC200" />
+                      <Scatter name="Loss" data={standardGames.filter(g => !g.weWon && !g.wasDrawn).sort((a, b) => a.ratingdiff - b.ratingdiff)} fill="#EA3817" />
+                      <Legend verticalAlign="top" />
+                      <Tooltip />
+                    </ScatterChart>
+                  </ResponsiveContainer>
+
+                  <hr />
 
                 </div>
 
@@ -627,18 +924,33 @@ class App extends React.Component {
 
   fetchGamesComplete() {
     this.allGames.reverse(); // Reverse the array, since recent games are first
+    this.allGames.filter(g => g.status != "NoStart" || g.status != "Aborted" || g.status != "nostart" || g.status != "aborted"); // Remove games that didn't even start
+    this.allGames.filter(g => g.status != "Created" || g.status != "Started" || g.status != "created" || g.status != "started"); // Remove games that haven't finished yet
     this.allGames.forEach(game => {
       // Calculate the ending rating
       let rating: number;
       if (game.players.black.userId.toUpperCase() === this.previouslySelectedUname.toUpperCase()) {
         rating = game.players.black.rating + game.players.black.ratingDiff;
+        game['ourSide'] = 'black';
+        game['oppName'] = game.players.white.userId;
+        game['ourRatingBefore'] = game.players.black.rating;
+        game['oppRatingBefore'] = game.players.white.rating;
       } else {
         rating = game.players.white.rating + game.players.white.ratingDiff;
+        game['ourSide'] = 'white';
+        game['oppName'] = game.players.black.userId;
+        game['ourRatingBefore'] = game.players.white.rating;
+        game['oppRatingBefore'] = game.players.black.rating;
       }
       game['ratingAfter'] = rating;
+      game['weWon'] = (game.ourSide === game.winner);
       // Calculate the ending datetime
       let enddate = new Date(game.lastMoveAt);
       game['enddate'] = '' + enddate;
+      game['ratingdiff'] = game.ourRatingBefore - game.oppRatingBefore;
+      game['wasDrawn'] = (game.status === 'Draw' || game.status === 'Stalemate' || game.status === 'draw' || game.status === 'stalemate');
+      let startDate = new Date(game.createdAt);
+      game['simpleStartDate'] = '' + startDate.getMonth() + '/' + startDate.getDate() + '/' + startDate.getFullYear();
     });
     console.log(this.allGames);
     this.loading = false;

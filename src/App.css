@@ -38,3 +38,7 @@
 .center-text {
   text-align: center;
 }
+
+.board-width {
+  width: 400px;
+}
