@@ -291,7 +291,7 @@ class App extends React.Component {
             <br /><br />
             <bp.Spinner className="pt-large" />
 
-            {this.tempTotalPages > 10 && (<span><br /><br /><i>This player has a lot of games!<br />Sit tight, Lichess limits our retrieval rate to around 50 games per second.<br />Additionally, Lichess makes us take a 60 second break every few hundred games...</i></span>)}
+            {this.tempTotalPages > 7 && (<span><br /><br /><i>This player has a lot of games!<br />Sit tight, Lichess limits our retrieval rate to around 50 games per second.<br />Additionally, Lichess makes us take a 60 second break every few hundred games...</i></span>)}
 
             <br /><br />
             {
@@ -949,31 +949,38 @@ class App extends React.Component {
     }
 
     lichess.user(uname, (err, user: string) => {
+      if (err !== null) {
+        console.log(err);
+        console.log(user);
+        this.loading = false;
+        this.forceUpdate();
+        return;
+      }
       this.userData = JSON.parse(user);
       console.log(this.userData);
-    });
 
-    lichess.user.games(uname,
-      { with_analysis: 1, rated: 1, with_opening: 1, nb: 100, page: 1, with_moves: 1, with_movetimes: 1 },
-      (err: string, games: string) => {
-        if (err != null) {
-          console.log('Recieved error in initial page request: ' + err);
-          console.log('Waiting 60 seconds before next request.');
-          // Try again
+      lichess.user.games(uname,
+        { with_analysis: 0, rated: 1, with_opening: 1, nb: 100, page: 1, with_moves: 1, with_movetimes: 1 },
+        (err: string, games: string) => {
+          if (err != null) {
+            console.log('Recieved error in initial page request: ' + err);
+            console.log('Waiting 60 seconds before next request.');
+            // Try again
+            window.setTimeout(() => {
+              this.startFetchingGames(uname);
+            }, 60010);
+            return;
+          }
+          let pageData = JSON.parse(games);
+          this.allGames = this.allGames.concat(pageData.currentPageResults);
+          this.tempTotalPages = pageData.nbPages;
+          // 1 second timeout between pages
           window.setTimeout(() => {
-            this.startFetchingGames(uname);
-          }, 60010);
-          return;
+            this.fetchGamePage(2, pageData.nbPages, uname);
+          }, 1010);
         }
-        let pageData = JSON.parse(games);
-        this.allGames = this.allGames.concat(pageData.currentPageResults);
-        this.tempTotalPages = pageData.nbPages;
-        // 1 second timeout between pages
-        window.setTimeout(() => {
-          this.fetchGamePage(2, pageData.nbPages, uname);
-        }, 1010);
-      }
-    );
+      );
+    });
   }
 
   fetchGamePage(currPage: number, numPages: number, uname: string) {
