@@ -47,7 +47,6 @@ class FenTools {
         let shortFen = fen;
         let result: any[] = [];
         if (!Object.keys(this.db).includes(shortFen)) {
-            console.log('This fen wasn\'t in the database.');
             return [];
         }
         Object.keys(this.db[shortFen]).forEach(move => {

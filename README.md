@@ -16,7 +16,7 @@ This app is written using React Typescript, with Blueprint.js for UI components 
 
 ## Current Status
 
-Basic analytics are working. However, more analytics are coming soon. Also, for users with many games, Lichess might return a 429 (too many requests); I need to implement handling that waits and tries again to keep retrieving the games.
+Basic analytics and the opening explorer are working.
 
 ## License
 

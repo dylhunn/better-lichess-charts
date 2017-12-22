@@ -276,7 +276,7 @@ class App extends React.Component {
         </bp.Callout>
         <span className="flex-span">
           <input className="pt-input pt-large pt-intent-primary uname-input" type="text" placeholder="Lichess username..." dir="auto" onChange={(e) => { this.unameBoxText = e.target.value; }} />
-          <bp.Button className="pt-large pt-intent-success gen-btn" iconName="series-derived" onClick={() => this.startFetchingGames(this.unameBoxText)}>Generate</bp.Button>
+          <bp.Button className="pt-large pt-intent-success gen-btn" iconName="series-derived" onClick={() => { this.previouslySelectedUname = this.unameBoxText; this.startFetchingGames(this.unameBoxText) }}>Generate</bp.Button>
         </span>
         <hr />
         {this.loading ? (
@@ -285,17 +285,17 @@ class App extends React.Component {
               this.computingdb ? (
                 <i>Computing this player's opening statistics; this will take a few moments...</i>
               ) : (
-                  <i>Retrieving games and analysis from lichess...</i>
+                  <i>Retrieving games and analysis from Lichess...</i>
                 )
             }
             <br /><br />
             <bp.Spinner className="pt-large" />
 
-            {this.tempTotalPages > 10 && (<span><br /><br /><i>This player has a lot of games! Sit tight, analysis will take a moment...</i></span>)}
+            {this.tempTotalPages > 10 && (<span><br /><br /><i>This player has a lot of games!<br />Sit tight, Lichess limits our retrieval rate to around 50 games per second.<br />Additionally, Lichess makes us take a 60 second break every few hundred games...</i></span>)}
 
             <br /><br />
             {
-              this.computingdb || <i>({this.tempPageNo} / {this.tempTotalPages})</i>
+              this.computingdb || <i>(Retrieving game page {this.tempPageNo} / {this.tempTotalPages})</i>
             }
             <hr />
             <h6>Lichess TV while you wait</h6>
@@ -334,8 +334,8 @@ class App extends React.Component {
                   <h3>Player Information</h3>
                   <bp.Callout>
                     <h5>{this.userData.title} <a href={this.userData.url} target="_blank">{this.previouslySelectedUname}</a></h5>
-                    <h6>{this.userData.profile.firstName} {this.userData.profile.lastName}</h6>
-                    <p>{this.userData.profile.bio}</p>
+                    <h6>{this.userData.profile !== undefined && this.userData.profile.firstName} {this.userData.profile !== undefined && this.userData.profile.lastName}</h6>
+                    <p>{this.userData.profile !== undefined && this.userData.profile.bio}</p>
                   </bp.Callout>
                   <br />
                   <table className="pt-table pt-striped pt-bordered">
@@ -346,11 +346,14 @@ class App extends React.Component {
                       </tr>
                       <tr>
                         <td>Country</td>
-                        <td>{this.userData.profile.country}</td>
+                        <td>{this.userData.profile !== undefined && this.userData.profile.country}</td>
                       </tr>
                       <tr>
                         <td>Location</td>
-                        <td><a href={'http://maps.google.com/?q=' + encodeURIComponent(this.userData.profile.location)} target="_blank">{this.userData.profile.location}</a></td>
+                        {
+                          this.userData.profile !== undefined &&
+                          <td><a href={'http://maps.google.com/?q=' + encodeURIComponent(this.userData.profile.location)} target="_blank">{this.userData.profile.location}</a></td>
+                        }
                       </tr>
                       <tr>
                         <td>Followers</td>
@@ -934,7 +937,6 @@ class App extends React.Component {
   }
 
   startFetchingGames(uname: string) {
-    this.previouslySelectedUname = this.unameBoxText;
     this.allGames = [];
     this.loading = true;
     this.tempPageNo = 0;
@@ -954,10 +956,22 @@ class App extends React.Component {
     lichess.user.games(uname,
       { with_analysis: 1, rated: 1, with_opening: 1, nb: 100, page: 1, with_moves: 1, with_movetimes: 1 },
       (err: string, games: string) => {
+        if (err != null) {
+          console.log('Recieved error in initial page request: ' + err);
+          console.log('Waiting 60 seconds before next request.');
+          // Try again
+          window.setTimeout(() => {
+            this.startFetchingGames(uname);
+          }, 60010);
+          return;
+        }
         let pageData = JSON.parse(games);
         this.allGames = this.allGames.concat(pageData.currentPageResults);
         this.tempTotalPages = pageData.nbPages;
-        this.fetchGamePage(2, pageData.nbPages, uname);
+        // 1 second timeout between pages
+        window.setTimeout(() => {
+          this.fetchGamePage(2, pageData.nbPages, uname);
+        }, 1010);
       }
     );
   }
@@ -972,9 +986,21 @@ class App extends React.Component {
     lichess.user.games(uname,
       { with_analysis: 0, rated: 1, with_opening: 1, nb: 100, page: currPage, with_moves: 1, with_movetimes: 1 },
       (err: string, games: string) => {
+        if (err != null) {
+          console.log('Recieved error: ' + err);
+          console.log('Waiting 60 seconds before next request.');
+          // Try again
+          window.setTimeout(() => {
+            this.fetchGamePage(currPage + 1, numPages, uname);
+          }, 60010);
+          return;
+        }
         let pageData = JSON.parse(games);
         this.allGames = this.allGames.concat(pageData.currentPageResults);
-        this.fetchGamePage(currPage + 1, numPages, uname);
+        // 1 second timeout between pages
+        window.setTimeout(() => {
+          this.fetchGamePage(currPage + 1, numPages, uname);
+        }, 1010);
       }
     );
   }
@@ -1020,7 +1046,7 @@ class App extends React.Component {
       this.computingdb = false;
       this.loading = false;
       this.forceUpdate();
-    }, 100);
+    }, 500);
   }
 
 }
