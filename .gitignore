@@ -8,6 +8,8 @@
 
 # production
 # commented to use github pages
+# push with: 
+#    git subtree push --prefix build origin gh-pages
 # /build
 
 # misc
