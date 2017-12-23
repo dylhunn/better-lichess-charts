@@ -1,5 +1,9 @@
 # Better Lichess Charts
 
+## I just want to use this! Where do I go?
+
+Click [here](https://dylhunn.github.io/better-lichess-charts/)!
+
 ## Introduction
 
 I always thought the charts and graphs that Lichess provides weren't that great. However, since Lichess exposes an API, I took the opportunity to re-implement them. Rather than using Lichess's approach of "insights," instead this tool generates an entire predefined report on your playing. This is a very low-effort way to explore your playing metrics.
