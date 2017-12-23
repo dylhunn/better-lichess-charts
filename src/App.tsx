@@ -269,8 +269,7 @@ class App extends React.Component {
         <h1 className="center-text">Better Lichess Analytics</h1>
         <h5 className="center-text">Instant analytics on any player</h5>
         <bp.Callout>
-          The standard charts on Lichess aren't very rich, and the insights are challenging to use.&nbsp;
-          Additionally, Lichess makes it impossible to view insights on other players!&nbsp;
+          Lichess has a limited numebr of charts, and not many insights for other players!&nbsp;
           This tool attempts to automatically generate a report on your (or an opponent's) playing data, complete with rating analysis, opening exploration, and more, without any manual filtering required.&nbsp;
           <i>This is an <a href="https://github.com/dylhunn/better-lichess-charts" target="_blank">open source project</a></i>.
         </bp.Callout>
